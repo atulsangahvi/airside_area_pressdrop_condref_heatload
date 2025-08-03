@@ -67,7 +67,20 @@ st.write(f"Tube External Area: {tube_ext_area:.4f} m²")
 st.write(f"Net Fin Area: {net_fin_area:.4f} m²")
 st.write(f"Total Air-Side Area: {total_air_side_area:.4f} m²")
 st.write(f"Free Flow Area A_min: {net_free_flow_area:.4f} m²")
+
+# Air properties
+T_K = air_temp_C + 273.15
+rho = PropsSI("D", "T", T_K, "P", 101325, "Air")
+mu = PropsSI("V", "T", T_K, "P", 101325, "Air")
+
+# Reynolds number and face velocity in fin passage
+Re = rho * air_velocity_ms * tube_od_m / mu if mu > 0 else 0
+
 st.write(f"Air Velocity: {air_velocity_ms:.2f} m/s")
+st.write(f"Reynolds Number: {Re:.0f}")
+st.write(f"Air Density: {rho:.3f} kg/m³")
+st.write(f"Air Viscosity: {mu:.7f} Pa·s")
+
 st.write(f"Pressure Drop per Row: {dp_per_row:.2f} Pa")
 st.write(f"Total Air-side Pressure Drop: {dp_total:.2f} Pa")
 
