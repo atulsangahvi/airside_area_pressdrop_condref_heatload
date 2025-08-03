@@ -1,88 +1,74 @@
 
 import math
-import numpy as np
 import streamlit as st
 import pandas as pd
 from CoolProp.CoolProp import PropsSI, get_global_param_string
 
-st.title("Air-Side + Refrigerant Heat Load Calculator")
+st.title("Air-Side Coil + Rich Pressure Drop + Refrigerant Heat Load Calculator")
 
 # -----------------------------
-# Air-Side Coil Inputs
+# Air-Side Coil Geometry Inputs
 # -----------------------------
-st.header("Air-Side Coil Parameters")
+st.header("Air-Side Coil Geometry")
 
 tube_od_mm = st.number_input("Tube Outer Diameter (mm)", value=9.525)
-tube_thickness_mm = st.number_input("Tube Wall Thickness (mm)", value=0.35)
-row_pitch_mm = st.number_input("Row Pitch (mm)", value=25.4)
 tube_pitch_mm = st.number_input("Tube Pitch (mm)", value=25.4)
+row_pitch_mm = st.number_input("Row Pitch (mm)", value=22.0)
 fin_thickness_mm = st.number_input("Fin Thickness (mm)", value=0.12)
 fpi = st.number_input("Fins per Inch (FPI)", value=12)
 num_rows = st.number_input("Number of Rows", value=4)
 face_width_m = st.number_input("Coil Face Width (m)", value=1.0)
 face_height_m = st.number_input("Coil Face Height (m)", value=1.0)
 air_flow_cmh = st.number_input("Air Flow Rate (m³/h)", value=10000)
-air_temp_C = st.number_input("Air Temperature (°C)", value=35.0)
 
-# Geometry conversions
+# -----------------------------
+# Derived Geometrical Calculations
+# -----------------------------
 tube_od_m = tube_od_mm / 1000
 tube_pitch_m = tube_pitch_mm / 1000
 row_pitch_m = row_pitch_mm / 1000
 fin_thickness_m = fin_thickness_mm / 1000
 fins_per_m = fpi * 39.3701
-fin_spacing_m = 1 / fins_per_m
+frontal_area_m2 = face_width_m * face_height_m
 fin_depth_m = num_rows * row_pitch_m
-frontal_area = face_width_m * face_height_m
 
-# Tube and fin area
 tubes_per_row = math.floor(face_width_m / tube_pitch_m)
 total_tubes = tubes_per_row * num_rows
-tube_ext_area = total_tubes * (math.pi * tube_od_m) * face_height_m
+tube_ext_area = total_tubes * (math.pi * tube_od_m)
 
 fin_area_per_fin = 2 * face_width_m * fin_depth_m
-total_fin_area = fin_area_per_fin * fins_per_m
-tube_hole_area = (math.pi / 4) * tube_od_m**2 * total_tubes * fins_per_m
-net_fin_area = total_fin_area - tube_hole_area
-total_air_side_area = tube_ext_area + net_fin_area
+total_gross_fin_area = fin_area_per_fin * fins_per_m
+hole_area_per_tube = (math.pi / 4) * tube_od_m**2
+total_hole_area = hole_area_per_tube * total_tubes * fins_per_m
+net_fin_area = total_gross_fin_area - total_hole_area
+total_air_side_area = (tube_ext_area + net_fin_area) * face_height_m
 
-# Free flow area (based on geometry)
-open_gap_per_fin = face_width_m * (fin_spacing_m - fin_thickness_m)
-total_open_area = open_gap_per_fin * fins_per_m * face_height_m
-tube_blockage_area = tubes_per_row * (math.pi / 4) * tube_od_m**2 * face_height_m
-A_min = total_open_area - tube_blockage_area
-
-# Airflow properties
+net_free_flow_area = frontal_area_m2 * 0.25  # 25% free flow area default
 air_flow_m3s = air_flow_cmh / 3600
-T_K = air_temp_C + 273.15
-rho = PropsSI("D", "T", T_K, "P", 101325, "Air")
-mu = PropsSI("V", "T", T_K, "P", 101325, "Air")
-m_dot_air = rho * air_flow_m3s
-G = m_dot_air / A_min
-D_h = 4 * (fin_spacing_m * (tube_pitch_m - tube_od_m)) / (2 * (fin_spacing_m + (tube_pitch_m - tube_od_m)))
-Re = G * D_h / mu
+air_velocity_ms = air_flow_m3s / net_free_flow_area if net_free_flow_area > 0 else 0
 
-# Friction factor from chart (Kays & London style interpolation)
-Re_data = [300, 500, 800, 1000, 1500, 2000, 3000, 4000, 5000, 7000, 10000]
-f_data =  [0.11, 0.08, 0.06, 0.052, 0.043, 0.037, 0.03, 0.025, 0.021, 0.018, 0.015]
-f = np.interp(Re, Re_data, f_data)
+# -----------------------------
+# Rich Pressure Drop Calculation
+# -----------------------------
+st.header("Air-Side Pressure Drop (Rich Formula)")
 
-delta_P = f * (G**2) / (2 * rho)
-air_velocity = air_flow_m3s / A_min
+a_lookup = {8: 7.15, 10: 8.5, 12: 9.63, 13.5: 11.0}
+closest_fpi = min(a_lookup.keys(), key=lambda x: abs(x - fpi))
+a_value = a_lookup[closest_fpi]
 
-# Display results
+dp_per_row = a_value * (air_velocity_ms ** 1.56)
+dp_total = dp_per_row * num_rows
+
 st.subheader("Air-Side Results")
-st.write(f"**Tubes per Row:** {tubes_per_row}")
-st.write(f"**Total Tubes:** {total_tubes}")
-st.write(f"**Tube External Area:** {tube_ext_area:.4f} m²")
-st.write(f"**Net Fin Area:** {net_fin_area:.4f} m²")
-st.write(f"**Total Air-Side Area:** {total_air_side_area:.4f} m²")
-st.write(f"**Free Flow Area A_min:** {A_min:.4f} m²")
-st.write(f"**Air Velocity:** {air_velocity:.2f} m/s")
-st.write(f"**Air Density:** {rho:.3f} kg/m³")
-st.write(f"**Air Viscosity:** {mu:.7f} Pa·s")
-st.write(f"**Reynolds Number:** {Re:.0f}")
-st.write(f"**Friction Factor:** {f:.4f}")
-st.write(f"**Air-side Pressure Drop:** {delta_P:.2f} Pa")
+st.write(f"Tubes per Row: {tubes_per_row}")
+st.write(f"Total Tubes: {total_tubes}")
+st.write(f"Tube External Area: {tube_ext_area:.4f} m²")
+st.write(f"Net Fin Area: {net_fin_area:.4f} m²")
+st.write(f"Total Air-Side Area: {total_air_side_area:.4f} m²")
+st.write(f"Free Flow Area A_min: {net_free_flow_area:.4f} m²")
+st.write(f"Air Velocity: {air_velocity_ms:.2f} m/s")
+st.write(f"Pressure Drop per Row: {dp_per_row:.2f} Pa")
+st.write(f"Total Air-side Pressure Drop: {dp_total:.2f} Pa")
 
 # -----------------------------
 # Refrigerant Heat Load Section
@@ -118,18 +104,18 @@ try:
     Q_total = Q_sensible + Q_latent + Q_subcool
 
     st.subheader("Heat Load Results")
-    st.write(f"**Saturation Temp (°C):** {T_sat - 273.15:.2f}")
-    st.write(f"**h1 (Inlet Superheated):** {h1:.2f} J/kg")
-    st.write(f"**h2 (Saturated Vapor):** {h2:.2f} J/kg")
-    st.write(f"**h3 (Saturated Liquid):** {h3:.2f} J/kg")
-    st.write(f"**h4 (Subcooled Liquid):** {h4:.2f} J/kg")
-    st.write(f"**Sensible Cooling:** {Q_sensible:.2f} kW")
-    st.write(f"**Latent Condensation:** {Q_latent:.2f} kW")
-    st.write(f"**Subcooling:** {Q_subcool:.2f} kW")
-    st.write(f"**Total Heat Removed:** {Q_total:.2f} kW")
+    st.write(f"Saturation Temp (°C): {T_sat - 273.15:.2f}")
+    st.write(f"h1 (Inlet Superheated): {h1:.2f} J/kg")
+    st.write(f"h2 (Saturated Vapor): {h2:.2f} J/kg")
+    st.write(f"h3 (Saturated Liquid): {h3:.2f} J/kg")
+    st.write(f"h4 (Subcooled Liquid): {h4:.2f} J/kg")
+    st.write(f"Sensible Cooling: {Q_sensible:.2f} kW")
+    st.write(f"Latent Condensation: {Q_latent:.2f} kW")
+    st.write(f"Subcooling: {Q_subcool:.2f} kW")
+    st.write(f"Total Heat Removed: {Q_total:.2f} kW")
 
     if T3 >= T_sat:
-        st.warning("Subcooling temperature is higher than or equal to saturation temperature. No subcooling occurs.")
+        st.warning("Subcooling temperature is higher than or equal to bubble point. No subcooling occurs.")
 
 except Exception as e:
     st.error(f"Calculation error: {e}")
