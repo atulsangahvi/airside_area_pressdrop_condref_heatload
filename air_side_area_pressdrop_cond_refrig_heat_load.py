@@ -138,6 +138,9 @@ if st.sidebar.button("Calculate Heat Load"):
         Q_latent = m_dot_ref * (h2 - h3) / 1000
         Q_subcool = m_dot_ref * (h3 - h4) / 1000
         Q_total = Q_sensible + Q_latent + Q_subcool
+        st.write(f"**Bubble Point Temperature:** {T_bubble - 273.15:.2f} °C")
+        if T3 >= T_bubble:
+            st.warning("Subcooling temperature is not below bubble point — no subcooling.")
         st.subheader("Refrigerant Heat Load Results")
         st.write(f"**Desuperheating:** {Q_sensible:.2f} kW")
         st.write(f"**Condensing:** {Q_latent:.2f} kW")
