@@ -145,3 +145,79 @@ if st.sidebar.button("Calculate Heat Load"):
         st.write(f"**Total Heat Removed:** {Q_total:.2f} kW")
     except Exception as e:
         st.error(f"Calculation error: {e}")
+
+
+
+import math
+import streamlit as st
+import pandas as pd
+try:
+    from CoolProp.CoolProp import PropsSI
+    coolprop_available = True
+except ImportError:
+    coolprop_available = False
+
+def air_properties_lookup(T_C):
+    T_table = [0, 10, 20, 30, 40, 50, 60]
+    mu_table = [1.71e-5, 1.75e-5, 1.81e-5, 1.87e-5, 1.92e-5, 1.98e-5, 2.03e-5]
+    rho_table = [1.293, 1.247, 1.204, 1.165, 1.127, 1.093, 1.060]
+    T_C = max(0, min(60, T_C))
+    for i in range(len(T_table)-1):
+        if T_table[i] <= T_C <= T_table[i+1]:
+            frac = (T_C - T_table[i]) / (T_table[i+1] - T_table[i])
+            mu = mu_table[i] + frac * (mu_table[i+1] - mu_table[i])
+            rho = rho_table[i] + frac * (rho_table[i+1] - rho_table[i])
+            return rho, mu
+    return rho_table[-1], mu_table[-1]
+
+def safe_props(fluid, P, T=None, Q=None):
+    try:
+        if T is not None:
+            return PropsSI("H", "P", P, "T", T, fluid)
+        elif Q is not None:
+            return PropsSI("H", "P", P, "Q", Q, fluid)
+    except:
+        return None
+
+st.title("Air-Side and Refrigerant Heat Load Calculator")
+
+st.sidebar.header("Refrigerant Heat Load Inputs")
+fluid = st.sidebar.selectbox("Select Refrigerant", ["R134a", "R407C"])
+P_cond_bar = st.sidebar.number_input("Condensing Pressure (bar abs)", value=23.52)
+T_superheat = st.sidebar.number_input("Inlet Superheated Temp (°C)", value=95.0)
+T_subcool = st.sidebar.number_input("Outlet Subcooled Liquid Temp (°C)", value=52.7)
+m_dot_ref = st.sidebar.number_input("Refrigerant Mass Flow Rate (kg/s)", value=0.599)
+
+if st.sidebar.button("Calculate Heat Load"):
+    try:
+        P_cond = P_cond_bar * 1e5
+        T1 = T_superheat + 273.15
+        T3 = T_subcool + 273.15
+
+        T_bubble, T_dew = None, None
+        try:
+            T_bubble = PropsSI("T", "P", P_cond, "Q", 0, fluid)
+            T_dew = PropsSI("T", "P", P_cond, "Q", 1, fluid)
+        except:
+            pass
+
+        h1 = safe_props(fluid, P_cond, T=T1) if (T_bubble and T1 > T_bubble) else safe_props(fluid, P_cond, Q=1)
+        h2 = safe_props(fluid, P_cond, Q=1)
+        h3 = safe_props(fluid, P_cond, Q=0)
+        h4 = safe_props(fluid, P_cond, T=T3) if (T_bubble and T3 < T_bubble) else h3
+
+        if None in [h1, h2, h3, h4]:
+            raise ValueError("One or more enthalpy values could not be retrieved for the selected fluid.")
+
+        Q_sensible = m_dot_ref * (h1 - h2) / 1000
+        Q_latent = m_dot_ref * (h2 - h3) / 1000
+        Q_subcool = m_dot_ref * (h3 - h4) / 1000
+        Q_total = Q_sensible + Q_latent + Q_subcool
+
+        st.subheader("Refrigerant Heat Load Results")
+        st.write(f"**Desuperheating:** {Q_sensible:.2f} kW")
+        st.write(f"**Condensing:** {Q_latent:.2f} kW")
+        st.write(f"**Subcooling:** {Q_subcool:.2f} kW")
+        st.write(f"**Total Heat Removed:** {Q_total:.2f} kW")
+    except Exception as e:
+        st.error(f"Calculation error: {e}")
