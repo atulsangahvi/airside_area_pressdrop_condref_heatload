@@ -148,6 +148,14 @@ if st.sidebar.button("Calculate Heat Load"):
         st.write(f"**Bubble Point Temperature Used:** {T_bubble_C:.2f} °C")
         if T3 >= T_bubble:
             st.warning("Subcooling temperature is not below bubble point — no subcooling.")
+        st.write(f"**Enthalpy h1 (inlet):** {h1 / 1000:.2f} kJ/kg")
+        st.write(f"**Enthalpy h2 (sat vapor):** {h2 / 1000:.2f} kJ/kg")
+        st.write(f"**Enthalpy h3 (sat liquid):** {h3 / 1000:.2f} kJ/kg")
+        st.write(f"**Enthalpy h4 (outlet):** {h4 / 1000:.2f} kJ/kg")
+        st.write(f"**Subcooling Δh (h3 - h4):** {(h3 - h4) / 1000:.4f} kJ/kg")
+        st.write(f"**Bubble Point Temperature Used:** {T_bubble_C:.2f} °C")
+        if T3 >= T_bubble:
+            st.warning("Subcooling temperature is not below bubble point — no subcooling.")
         st.subheader("Refrigerant Heat Load Results")
         st.write(f"**Desuperheating:** {Q_sensible:.2f} kW")
         st.write(f"**Condensing:** {Q_latent:.2f} kW")
