@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 from CoolProp.CoolProp import PropsSI, get_global_param_string
 
-st.title("Combined Air-Side Coil & Refrigerant Heat Load Calculator")
+st.title("Air-Side + Refrigerant Heat Load Calculator")
 
 # -----------------------------
 # Air-Side Coil Parameters
@@ -22,11 +22,9 @@ face_width_m = st.number_input("Coil Face Width (m)", value=1.0, step=0.0254)
 face_height_m = st.number_input("Coil Face Height (m)", value=1.0, step=0.0127)
 air_flow_cmh = st.number_input("Air Flow Rate (m³/h)", value=10000, step=50)
 air_temp_C = st.number_input("Air Temperature (°C)", value=35.0, step=0.5)
-free_area_percent = st.slider("Free Flow Area (%)", min_value=10, max_value=100, value=50)
+free_area_percent = st.slider("Free Flow Area (%)", min_value=10, max_value=100, value=25)
 
-# -----------------------------
 # Calculations
-# -----------------------------
 tube_od_m = tube_od_mm / 1000
 row_pitch_m = row_pitch_mm / 1000
 tube_pitch_m = tube_pitch_mm / 1000
@@ -37,14 +35,14 @@ fin_depth_m = num_rows * row_pitch_m
 
 tubes_per_row = math.floor(face_width_m / tube_pitch_m)
 total_tubes = tubes_per_row * num_rows
-tube_ext_area = total_tubes * (math.pi * tube_od_m * face_height_m)
+tube_ext_area = total_tubes * (math.pi * tube_od_m)
 
 fin_area_per_fin = 2 * face_width_m * fin_depth_m
 total_gross_fin_area = fin_area_per_fin * fins_per_m
 hole_area_per_tube = (math.pi / 4) * tube_od_m**2
 total_hole_area = hole_area_per_tube * total_tubes * fins_per_m
 net_fin_area = total_gross_fin_area - total_hole_area
-total_air_side_area = tube_ext_area + net_fin_area
+total_air_side_area = (tube_ext_area + net_fin_area) * face_height_m
 
 net_free_flow_area = frontal_area_m2 * (free_area_percent / 100)
 air_flow_m3s = air_flow_cmh / 3600
@@ -58,36 +56,27 @@ Re = rho * air_velocity_ms * tube_od_m / mu
 f = 0.25 * Re ** -0.25 if Re > 0 else 0
 dP = (f * num_rows * rho * air_velocity_ms**2) / 2
 
-st.subheader("Air-Side Detailed Results")
+st.subheader("Air-Side Results")
 st.write(f"**Tubes per Row:** {tubes_per_row}")
 st.write(f"**Total Tubes:** {total_tubes}")
-st.write(f"**Fin Depth:** {fin_depth_m:.4f} m")
 st.write(f"**Tube External Area:** {tube_ext_area:.4f} m²")
 st.write(f"**Net Fin Area:** {net_fin_area:.4f} m²")
-st.write(f"**Total Air-Side Area (Tube + Fin):** {total_air_side_area:.4f} m²")
-st.write(f"**Free Flow Area:** {net_free_flow_area:.4f} m² ({free_area_percent}%)")
+st.write(f"**Total Air-Side Area:** {total_air_side_area:.4f} m²")
+st.write(f"**Free Flow Area:** {net_free_flow_area:.4f} m²")
 st.write(f"**Air Velocity:** {air_velocity_ms:.2f} m/s")
 st.write(f"**Air Density:** {rho:.3f} kg/m³")
 st.write(f"**Air Viscosity:** {mu:.7f} Pa·s")
 st.write(f"**Reynolds Number:** {Re:.2f}")
-st.write(f"**Friction Factor (empirical):** {f:.4f}")
-st.write(f"**Air-Side Pressure Drop:** {dP:.2f} Pa")
+st.write(f"**Friction Factor:** {f:.4f}")
+st.write(f"**Air-side Pressure Drop:** {dP:.2f} Pa")
 
-
-
-import math
-import streamlit as st
-import pandas as pd
-from CoolProp.CoolProp import PropsSI, get_fluid_list
-
-# Title
-
+# -----------------------------
 # Refrigerant Heat Load Section
+# -----------------------------
 st.header("Refrigerant Heat Load Calculator")
 
-# Refrigerant options filtered
-all_fluids = get_fluid_list()
-refrigerants = sorted([f for f in all_fluids if 'REFPROP::' not in f and 'HEOS::' not in f and not f.startswith("INCOMP::") and not f.startswith("Air") and not f.startswith("water")])
+fluid_list = get_global_param_string("FluidsList").split(',')
+refrigerants = sorted([f for f in fluid_list if f.startswith("R")])
 fluid = st.selectbox("Select Refrigerant", refrigerants, index=refrigerants.index("R134a") if "R134a" in refrigerants else 0)
 
 P_cond_bar = st.number_input("Condensing Pressure (bar abs)", value=23.52, min_value=1.0, max_value=35.0, step=0.1)
@@ -95,7 +84,6 @@ T_superheat = st.number_input("Inlet Superheated Temp (°C)", value=95.0)
 T_subcool = st.number_input("Outlet Subcooled Liquid Temp (°C)", value=52.7)
 m_dot = st.number_input("Mass Flow Rate (kg/s)", value=0.599)
 
-# SI conversions
 P_cond = P_cond_bar * 1e5
 T1 = T_superheat + 273.15
 T3 = T_subcool + 273.15
@@ -105,11 +93,7 @@ try:
     h1 = PropsSI("H", "P", P_cond, "T", T1, fluid) if T1 > T_sat else PropsSI("H", "P", P_cond, "Q", 1, fluid)
     h2 = PropsSI("H", "P", P_cond, "Q", 1, fluid)
     h3 = PropsSI("H", "P", P_cond, "Q", 0, fluid)
-
-    if T3 < T_sat:
-        h4 = PropsSI("H", "P", P_cond, "T", T3, fluid)
-    else:
-        h4 = h3
+    h4 = PropsSI("H", "P", P_cond, "T", T3, fluid) if T3 < T_sat else h3
 
     q_sensible = h1 - h2
     q_latent = h2 - h3
