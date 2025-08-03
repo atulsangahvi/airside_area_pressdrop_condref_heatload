@@ -69,6 +69,7 @@ st.write(f"Total Air-Side Area: {total_air_side_area:.4f} m²")
 st.write(f"Free Flow Area A_min: {net_free_flow_area:.4f} m²")
 
 # Air properties
+air_temp_C = st.number_input("Air Entering Temperature (°C)", value=35.0, step=0.5)
 T_K = air_temp_C + 273.15
 rho = PropsSI("D", "T", T_K, "P", 101325, "Air")
 mu = PropsSI("V", "T", T_K, "P", 101325, "Air")
