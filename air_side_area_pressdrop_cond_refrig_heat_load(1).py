@@ -43,7 +43,8 @@ total_hole_area = hole_area_per_tube * total_tubes * fins_per_m
 net_fin_area = total_gross_fin_area - total_hole_area
 total_air_side_area = (tube_ext_area + net_fin_area) * face_height_m
 
-net_free_flow_area = frontal_area_m2 * 0.25  # 25% free flow area default
+free_area_percent = st.slider('Free Flow Area (%)', min_value=10, max_value=100, value=25)
+net_free_flow_area = frontal_area_m2 * (free_area_percent / 100)
 air_flow_m3s = air_flow_cmh / 3600
 air_velocity_ms = air_flow_m3s / net_free_flow_area if net_free_flow_area > 0 else 0
 
