@@ -120,6 +120,13 @@ if st.sidebar.button("Calculate Air-Side"):
 st.sidebar.header("Refrigerant Heat Load Inputs")
 fluid = st.sidebar.selectbox("Select Refrigerant", ["R134a", "R407C"], key="fluid_selection")
 P_cond_bar = st.sidebar.number_input("Condensing Pressure (bar abs)", value=23.52)
+try:
+    T_bubble = PropsSI("T", "P", P_cond, "Q", 0, fluid)
+    T_bubble_C = T_bubble - 273.15
+except:
+    T_bubble_C = st.sidebar.number_input("Bubble Point Temperature (°C)", value=54.0)
+    T_bubble = T_bubble_C + 273.15
+
 T_superheat = st.sidebar.number_input("Inlet Superheated Temp (°C)", value=95.0)
 T_subcool = st.sidebar.number_input("Outlet Subcooled Liquid Temp (°C)", value=52.7)
 m_dot_ref = st.sidebar.number_input("Refrigerant Mass Flow Rate (kg/s)", value=0.599)
@@ -138,7 +145,7 @@ if st.sidebar.button("Calculate Heat Load"):
         Q_latent = m_dot_ref * (h2 - h3) / 1000
         Q_subcool = m_dot_ref * (h3 - h4) / 1000
         Q_total = Q_sensible + Q_latent + Q_subcool
-        st.write(f"**Bubble Point Temperature:** {T_bubble - 273.15:.2f} °C")
+        st.write(f"**Bubble Point Temperature Used:** {T_bubble_C:.2f} °C")
         if T3 >= T_bubble:
             st.warning("Subcooling temperature is not below bubble point — no subcooling.")
         st.subheader("Refrigerant Heat Load Results")
