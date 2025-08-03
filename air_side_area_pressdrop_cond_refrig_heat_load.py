@@ -118,7 +118,12 @@ if st.sidebar.button("Calculate Air-Side"):
     st.table(df)
 
 st.sidebar.header("Refrigerant Heat Load Inputs")
-fluid = st.sidebar.selectbox("Select Refrigerant", ["R134a", "R407C"], key="fluid_selection")
+
+from CoolProp.CoolProp import get_fluid_list
+refrigerant_keywords = ["R1", "R2", "R3", "R4", "R5", "R6"]
+known_refrigerants = sorted([f for f in get_fluid_list() if any(k in f for k in refrigerant_keywords)])
+fluid = st.sidebar.selectbox("Select Refrigerant", known_refrigerants, key="fluid_selection")
+
 P_cond_bar = st.sidebar.number_input("Condensing Pressure (bar abs)", value=23.52)
 try:
     T_bubble = PropsSI("T", "P", P_cond, "Q", 0, fluid)
