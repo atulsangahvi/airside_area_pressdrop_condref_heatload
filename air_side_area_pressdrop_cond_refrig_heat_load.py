@@ -2,10 +2,13 @@
 import math
 import streamlit as st
 import pandas as pd
-from CoolProp.CoolProp import PropsSI, get_fluid_list
+from CoolProp.CoolProp import PropsSI, get_global_param_string
 
 st.title("Combined Air-Side Coil & Refrigerant Heat Load Calculator")
 
+# -----------------------------
+# Air-Side Coil Parameters
+# -----------------------------
 st.header("Air-Side Coil Parameters")
 
 tube_od_mm = st.number_input("Tube Outer Diameter (mm)", value=9.525)
@@ -21,7 +24,6 @@ air_flow_cmh = st.number_input("Air Flow Rate (m³/h)", value=10000, step=50)
 air_temp_C = st.number_input("Air Temperature (°C)", value=35.0, step=0.5)
 free_area_percent = st.slider("Free Flow Area (%)", min_value=10, max_value=100, value=50)
 
-# Air-side calculations
 tube_od_m = tube_od_mm / 1000
 row_pitch_m = row_pitch_mm / 1000
 tube_pitch_m = tube_pitch_mm / 1000
@@ -60,19 +62,13 @@ st.write(f"**Reynolds Number:** {Re:.2f}")
 st.write(f"**Friction Factor:** {f:.4f}")
 st.write(f"**Air-side Pressure Drop:** {dP:.2f} Pa")
 
-
-st.header("Refrigerant Heat Load Calculator")
-
-from CoolProp.CoolProp import PropsSI, get_fluid_list
-
-# Title
-
+# -----------------------------
 # Refrigerant Heat Load Section
+# -----------------------------
 st.header("Refrigerant Heat Load Calculator")
 
-# Refrigerant options filtered
-all_fluids = get_fluid_list()
-refrigerants = sorted([f for f in all_fluids if 'REFPROP::' not in f and 'HEOS::' not in f and not f.startswith("INCOMP::") and not f.startswith("Air") and not f.startswith("water")])
+fluid_list = get_global_param_string("FluidsList").split(',')
+refrigerants = sorted([f for f in fluid_list if f.startswith("R")])
 fluid = st.selectbox("Select Refrigerant", refrigerants, index=refrigerants.index("R134a") if "R134a" in refrigerants else 0)
 
 P_cond_bar = st.number_input("Condensing Pressure (bar abs)", value=23.52, min_value=1.0, max_value=35.0, step=0.1)
@@ -80,7 +76,6 @@ T_superheat = st.number_input("Inlet Superheated Temp (°C)", value=95.0)
 T_subcool = st.number_input("Outlet Subcooled Liquid Temp (°C)", value=52.7)
 m_dot = st.number_input("Mass Flow Rate (kg/s)", value=0.599)
 
-# SI conversions
 P_cond = P_cond_bar * 1e5
 T1 = T_superheat + 273.15
 T3 = T_subcool + 273.15
@@ -90,11 +85,7 @@ try:
     h1 = PropsSI("H", "P", P_cond, "T", T1, fluid) if T1 > T_sat else PropsSI("H", "P", P_cond, "Q", 1, fluid)
     h2 = PropsSI("H", "P", P_cond, "Q", 1, fluid)
     h3 = PropsSI("H", "P", P_cond, "Q", 0, fluid)
-
-    if T3 < T_sat:
-        h4 = PropsSI("H", "P", P_cond, "T", T3, fluid)
-    else:
-        h4 = h3
+    h4 = PropsSI("H", "P", P_cond, "T", T3, fluid) if T3 < T_sat else h3
 
     q_sensible = h1 - h2
     q_latent = h2 - h3
@@ -110,6 +101,7 @@ try:
     st.write(f"**h2 (Saturated Vapor):** {h2:.2f} J/kg")
     st.write(f"**h3 (Saturated Liquid):** {h3:.2f} J/kg")
     st.write(f"**h4 (Subcooled Liquid):** {h4:.2f} J/kg")
+    st.write(f"**Subcooling Δh (h3 - h4):** {(h3 - h4) / 1000:.4f} kJ/kg")
     st.write(f"**Sensible Cooling:** {Q_sensible:.2f} kW")
     st.write(f"**Latent Condensation:** {Q_latent:.2f} kW")
     st.write(f"**Subcooling:** {Q_subcool:.2f} kW")
